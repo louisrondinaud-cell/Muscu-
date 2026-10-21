@@ -10,7 +10,7 @@ html{scroll-padding-top:env(safe-area-inset-top,0px)}
 body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;max-width:560px;margin-inline:auto;padding:16px 14px 40px}
 h1{font-size:26px;line-height:1.1;margin:4px 0 2px;font-weight:800;letter-spacing:-.02em}
 .sub{color:var(--mu);font-size:14px;margin:0 0 14px}
-.tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px}
+.tabs{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:12px}
 .tab{font:inherit;background:var(--card);color:var(--tx);border:1.5px solid var(--bd);border-radius:12px;padding:10px 2px;cursor:pointer;text-align:center;font-weight:700}
 .tab small{display:block;font-weight:400;color:var(--mu);font-size:12px}
 .tab[aria-pressed="true"]{border-color:var(--ac);background:var(--acbg)}
@@ -33,6 +33,7 @@ h1{font-size:26px;line-height:1.1;margin:4px 0 2px;font-weight:800;letter-spacin
 .chk{font:inherit;font-size:13px;font-weight:600;border:1.5px solid var(--bd);background:var(--bg);color:var(--tx);border-radius:999px;padding:6px 12px;cursor:pointer;white-space:nowrap}
 .done .chk{background:var(--ok);border-color:var(--ok);color:var(--bg)}
 .pics{display:flex;gap:8px;margin:12px 0 0}.pics figure{margin:0;flex:1;min-width:0}.pics img{width:100%;height:auto;border-radius:10px;display:block;background:#fff}.pics figcaption{font-size:12px;color:var(--mu);text-align:center;margin-top:4px}
+.stat{flex:1;background:var(--card);border:1.5px solid var(--bd);border-radius:12px;padding:10px 4px;text-align:center}.stat b{display:block;font-size:20px;font-variant-numeric:tabular-nums}.stat span{font-size:12px;color:var(--mu)}.stats{display:flex;gap:8px;margin-bottom:12px}.fin{width:100%;font:inherit;font-weight:700;font-size:16px;padding:14px;border:0;border-radius:12px;background:var(--ac);color:var(--bg);cursor:pointer;margin:4px 0 6px}.msg{font-size:14px;color:var(--ok);font-weight:600;margin:6px 2px}.lst div{display:flex;justify-content:space-between;gap:10px;font-size:14px;padding:7px 0;border-top:1px solid var(--bd)}.lst div:first-child{border-top:0}.lst span:last-child{color:var(--mu);text-align:right}.card h3{font-size:15px;margin:0 0 6px}
 .note{font-size:13px;color:var(--mu);margin-top:6px}
 </style></head><body>
 <h1>Mon programme muscu</h1>
@@ -72,7 +73,9 @@ const IMG={"Presse \u00e0 cuisses":["/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAoHCAkIBgo
 function pics(n){const m=IMG[n];return m?'<div class="pics">'+m.map((b,i)=>'<figure><img alt="'+n+" : "+(i?"fin":"départ")+'" src="data:image/jpeg;base64,'+b+'"><figcaption>'+(i?"Fin":"Départ")+'</figcaption></figure>').join("")+'</div>':""}
 let S={},cur="A";
 try{S=JSON.parse(localStorage.getItem("muscu2")||"{}");cur=localStorage.getItem("muscu2-tab")||"A"}catch(e){}
-if(!D[cur])cur="A";
+if(!D[cur]&&cur!=="P")cur="A";
+let H=[];try{H=JSON.parse(localStorage.getItem("muscu2-hist")||"[]")}catch(e){}
+function saveH(){try{localStorage.setItem("muscu2-hist",JSON.stringify(H.slice(-200)))}catch(e){}}
 const $=i=>document.getElementById(i);
 function save(){try{localStorage.setItem("muscu2",JSON.stringify(S));localStorage.setItem("muscu2-tab",cur)}catch(e){}}
 function val(k){return String(S[k]||"").replace(/[^0-9.,]/g,"")}
@@ -90,16 +93,40 @@ const x=D[k].e[i],id=k+"-"+i,mx=parseInt(x[1].split("-")[1]);let ok=true;
 for(let s=0;s<3;s++){if(!(num(id+"-r"+s)>=mx)||(!x[4]&&!(num(id+"-w"+s)>0)))ok=false}
 const h=$("h-"+id);if(h)h.textContent=ok?(x[4]?"Tout validé : passe à 60 s la prochaine fois.":"Toutes les séries à "+mx+" reps : monte de 1-2 kg la prochaine fois."):""}
 function prog(){const n=D[cur].e.filter((_,i)=>S[cur+"-"+i+"-d"]).length;$("prog").textContent=n+" sur "+D[cur].e.length+" exercices faits"}
+function fin(){
+const d=D[cur];let vol=0,dn=0,best={};
+d.e.forEach((x,i)=>{const id=cur+"-"+i;if(S[id+"-d"])dn++;let top=0;
+for(let s=0;s<3;s++){const r=num(id+"-r"+s),w=x[4]?0:num(id+"-w"+s);if(r>0&&w>0){vol+=r*w;if(w>top)top=w}}
+if(top>0)best[x[0]]=top});
+if(!dn&&!vol){$("msg").textContent="Coche un exercice ou note des poids avant de terminer.";return}
+const t0=S["t0-"+cur],min=Math.min(150,Math.max(15,t0?Math.round((Date.now()-t0)/60000):60)),bw=Math.min(200,Math.max(30,parseFloat(String(S.bw||"60").replace(",","."))||60)),kcal=Math.round(4.5*bw*min/60);
+H.push({t:Date.now(),n:d.j+" "+d.n,vol:Math.round(vol),min:min,kcal:kcal,dn:dn,best:best});saveH();
+D[cur].e.forEach((_,i)=>{S[cur+"-"+i+"-d"]=false});delete S["t0-"+cur];save();render();
+$("msg").textContent="Séance enregistrée : "+min+" min, environ "+kcal+" kcal."}
+function chart(){const v=H.slice(-12).map(x=>x.vol);if(!v.length)return"";const mx=Math.max.apply(null,v.concat([1])),w=300/v.length;
+return '<svg viewBox="0 0 300 100" width="100%" role="img"><title>Volume soulevé par séance</title>'+v.map((x,i)=>{const b=Math.max(2,Math.round(x/mx*80));return '<rect x="'+(i*w+3)+'" y="'+(90-b)+'" width="'+(w-6)+'" height="'+b+'" rx="3" style="fill:var(--ac)"/>'}).join("")+'</svg>'}
+function renderP(){
+const n=H.length,kc=H.reduce((a,x)=>a+x.kcal,0),vl=H.reduce((a,x)=>a+x.vol,0),f={},l={};
+H.forEach(x=>{for(const k in x.best){if(!(k in f))f[k]=x.best[k];l[k]=x.best[k]}});
+const pg=Object.keys(f).map(k=>'<div><span>'+k+'</span><span>'+f[k]+' → '+l[k]+' kg</span></div>').join("");
+const hs=H.slice(-8).reverse().map(x=>'<div><span>'+new Date(x.t).toLocaleDateString("fr-FR",{day:"numeric",month:"short"})+' · '+x.n+'</span><span>'+x.min+' min · '+x.kcal+' kcal</span></div>').join("");
+$("list").innerHTML='<div class="card"><h2>Mon poids</h2><div class="row"><span>Poids</span><input id="bw" inputmode="decimal" value="'+String(S.bw||"60").replace(/[^0-9.,]/g,"")+'" aria-label="Poids du corps"><em>kg</em></div><p class="note">Sert à estimer les calories dépensées.</p></div>'
++'<div class="stats"><div class="stat"><b>'+n+'</b><span>séances</span></div><div class="stat"><b>'+kc+'</b><span>kcal estimées</span></div><div class="stat"><b>'+Math.round(vl/1000*10)/10+' t</b><span>soulevées</span></div></div>'
++(n?'<div class="card"><h3>Volume par séance</h3>'+chart()+'</div><div class="card"><h3>Progression des charges</h3><div class="lst">'+(pg||'<p class="note">Note des poids pour voir ta progression.</p>')+'</div></div><div class="card"><h3>Dernières séances</h3><div class="lst">'+hs+'</div></div>':'<div class="card"><p class="tip">Aucune séance enregistrée pour l’instant. À la fin de ta séance, touche « Terminer la séance » pour la sauvegarder ici.</p></div>')
++'<p class="note">Calories : estimation à ± 30 %, calculée avec la durée de séance et ton poids. Pour prendre du muscle, ce qui compte surtout, c’est de manger assez.</p>'}
 function render(){
-$("tabs").innerHTML=Object.keys(D).map(k=>'<button class="tab" data-tab="'+k+'" aria-pressed="'+(k==cur)+'">'+D[k].j+'<small>'+D[k].n+'</small></button>').join("");
-$("list").innerHTML=D[cur].e.map((x,i)=>card(cur,i,x)).join("");
+$("tabs").innerHTML=Object.keys(D).map(k=>'<button class="tab" data-tab="'+k+'" aria-pressed="'+(k==cur)+'">'+D[k].j+'<small>'+D[k].n+'</small></button>').join("")+'<button class="tab" data-tab="P" aria-pressed="'+(cur=="P")+'">Suivi<small>Bilan</small></button>';
+document.querySelector(".bar").style.display=cur=="P"?"none":"";
+if(cur=="P"){renderP();return}
+$("list").innerHTML=D[cur].e.map((x,i)=>card(cur,i,x)).join("")+'<button class="fin" id="fin">Terminer la séance</button><p class="msg" id="msg"></p>';
 D[cur].e.forEach((_,i)=>hint(cur,i));prog()}
+document.addEventListener("input",e=>{if(e.target.id!=="bw")return;const v=e.target.value.replace(/[^0-9.,]/g,"");e.target.value=v;S.bw=v;save()});
 document.addEventListener("input",e=>{const k=e.target.dataset&&e.target.dataset.k;if(!k)return;
-const v=e.target.value.replace(/[^0-9.,]/g,"");e.target.value=v;S[k]=v;save();hint(cur,parseInt(k.split("-")[1]))});
+const v=e.target.value.replace(/[^0-9.,]/g,"");e.target.value=v;S[k]=v;if(!S["t0-"+cur])S["t0-"+cur]=Date.now();save();hint(cur,parseInt(k.split("-")[1]))});
 document.addEventListener("click",e=>{
 const t=e.target.closest("[data-tab]"),d=e.target.closest("[data-d]");
-if(t){cur=t.dataset.tab;save();render()}
-else if(d){const id=d.dataset.d;S[id+"-d"]=!S[id+"-d"];save();
+if(e.target.closest("#fin"))fin();else if(t){cur=t.dataset.tab;save();render()}
+else if(d){const id=d.dataset.d;S[id+"-d"]=!S[id+"-d"];if(!S["t0-"+cur])S["t0-"+cur]=Date.now();save();
 const c=$("c-"+id);c.classList.toggle("done",!!S[id+"-d"]);d.textContent=S[id+"-d"]?"Fait":"À faire";prog()}});
 $("rst").addEventListener("click",()=>{D[cur].e.forEach((_,i)=>{S[cur+"-"+i+"-d"]=false});save();render()});
 render();
